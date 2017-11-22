@@ -3,3 +3,6 @@
 *.vpi
 *.vvp
 *.vcd
+
+sim/run/*
+!sim/run/Makefile

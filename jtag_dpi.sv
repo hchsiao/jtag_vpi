@@ -36,53 +36,59 @@
 `define CMD_SCAN_CHAIN_FLIP_TMS	3
 `define CMD_STOP_SIMU		4
 
-module jtag_vpi
-#(	parameter DEBUG_INFO = 0,
+`define XFERT_MAX_SIZE  512
+
+module jtag_dpi
+#(parameter DEBUG_INFO = 0,
 	parameter TP = 1,
 	parameter TCK_HALF_PERIOD = 50, // Clock half period (Clock period = 100 ns => 10 MHz)
-        parameter  CMD_DELAY = 1000
-)   
+  parameter CMD_DELAY = 1000
+)
 (
 	output reg	tms,
 	output reg	tck,
 	output reg	tdi,
 	input		tdo,
-	input		enable,
 	input		init_done);
 
-integer		cmd;
-integer		length;
-integer		nb_bits;
+typedef struct {
+	int cmd;
+	byte buffer_out[`XFERT_MAX_SIZE];
+	byte buffer_in[`XFERT_MAX_SIZE];
+	int length;
+	int nb_bits;
+} vpi_cmd;
 
-reg [31:0] 	buffer_out [0:4095];   // Data storage from the jtag server
-reg [31:0] 	buffer_in  [0:4095];   // Data storage to the jtag server
+import "DPI-C" context function int check_for_command(output vpi_cmd cmd);
+import "DPI-C" context function int send_result_to_server(input vpi_cmd cmd);
+import "DPI-C" context function void sim_finish_callback();
 
-integer		flip_tms;
+bit flip_tms;
+bit enabled;
+int ercd;
 
-reg [31:0]	data_out;
-reg [31:0]	data_in;
-
-integer		debug;
-
-assign		tms_o = tms;
-assign		tck_o = tck;
-assign		tdi_o = tdi;
+vpi_cmd cmd_buff;
 
 initial
 begin
+  if($test$plusargs("jtag_vpi_enable")) begin
+    enabled = 1;
+  end
+  else begin
+    enabled = 0;
+    $display("WARN: jtag_vpi is not enabled");
+  end
+
 	tck		<= #TP 1'b0;
 	tdi		<= #TP 1'bz;
 	tms		<= #TP 1'b0;
-
-	data_out	<= 32'h0;
-	data_in		<= 32'h0;
 
 	// Insert a #delay here because we need to
 	// wait until the PC isn't pointing to flash anymore
 	// (this is around 20k ns if the flash_crash boot code
 	// is being booted from, else much bigger, around 10mil ns)
 	wait(init_done)
-		if($test$plusargs("jtag_vpi_enable")) main;
+		if(enabled) main;
 end
 
 task main;
@@ -97,20 +103,20 @@ begin
 		// Check for incoming command
 		// wait until a command is sent
 		// poll with a delay here
-		cmd = -1;
+		cmd_buff.cmd = -1;
 
-		while (cmd == -1)
+		while (cmd_buff.cmd == -1)
 		begin
-                     #CMD_DELAY $check_for_command(cmd, length, nb_bits, buffer_out);
+      #CMD_DELAY ercd = check_for_command(cmd_buff);
 		end
 
 		// now switch on the command
-		case (cmd)
+		case (cmd_buff.cmd)
 
 		`CMD_RESET :
 		begin
 			if (DEBUG_INFO)
-				$display("%t ----> CMD_RESET %h\n", $time, length);
+				$display("%t ----> CMD_RESET %h\n", $time, cmd_buff.length);
 			reset_tap;
 			goto_run_test_idle_from_reset;
 		end
@@ -128,7 +134,7 @@ begin
 				$display("%t ----> CMD_SCAN_CHAIN\n", $time);
 			flip_tms = 0;
 			do_scan_chain;
-			$send_result_to_server(length, buffer_in);
+			ercd = send_result_to_server(cmd_buff);
 		end
 
 		`CMD_SCAN_CHAIN_FLIP_TMS :
@@ -137,25 +143,25 @@ begin
 				$display("%t ----> CMD_SCAN_CHAIN\n", $time);
 			flip_tms = 1;
 			do_scan_chain;
-			$send_result_to_server(length, buffer_in);
+			ercd = send_result_to_server(cmd_buff);
 		end
 
 		`CMD_STOP_SIMU :
 		begin
 			if(DEBUG_INFO)
 				$display("%t ----> End of simulation\n", $time);
-			$finish();
+			destroy;
 		end
 
 		default:
 		begin
 			$display("Somehow got to the default case in the command case statement.");
-			$display("Command was: %x", cmd);
+			$display("Command was: %x", cmd_buff.cmd);
 			$display("Exiting...");
-			$finish();
+			destroy;
 		end
 
-		endcase // case (cmd)
+		endcase // case (cmd_buff.cmd)
 
 	end // while (1)
 end
@@ -205,27 +211,29 @@ endtask
 task do_tms_seq;
 
 integer		i,j;
-reg [31:0]	data;
+logic [7:0]	data;
 integer		nb_bits_rem;
 integer		nb_bits_in_this_byte;
 
 begin
 	if (DEBUG_INFO)
-		$display("(%0t) Task do_tms_seq of %d bits (length = %d)", $time, nb_bits, length);
+		$display("(%0t) Task do_tms_seq of %d bits (length = %d)",
+      $time, cmd_buff.nb_bits, cmd_buff.length);
 
 	// Number of bits to send in the last byte
-	nb_bits_rem = nb_bits % 8;
+	nb_bits_rem = cmd_buff.nb_bits % 8;
+	nb_bits_rem = nb_bits_rem>0 ? nb_bits_rem : 8;
 
-	for (i = 0; i < length; i = i + 1)
+	for (i = 0; i < cmd_buff.length; i = i + 1)
 	begin
 		// If we are in the last byte, we have to send only
 		// nb_bits_rem bits. If not, we send the whole byte.
-		nb_bits_in_this_byte = (i == (length - 1)) ? nb_bits_rem : 8;
+		nb_bits_in_this_byte = (i == (cmd_buff.length - 1)) ? nb_bits_rem : 8;
 
-		data = buffer_out[i];
+		data = cmd_buff.buffer_out[i];
 		for (j = 0; j < nb_bits_in_this_byte; j = j + 1)
 		begin
-			tms <= #1 1'b0;
+			tms <= #1 1'b0; // TODO: what for???
 			if (data[j] == 1) begin
 				tms <= #1 1'b1;
                         end
@@ -246,45 +254,54 @@ integer		_bit;
 integer		nb_bits_rem;
 integer		nb_bits_in_this_byte;
 integer		index;
+logic [7:0] data;
 
 begin
 	if(DEBUG_INFO)
-		$display("(%0t) Task do_scan_chain of %d bits (length = %d)", $time, nb_bits, length);
+		$display("(%0t) Task do_scan_chain of %d bits (length = %d)",
+      $time, cmd_buff.nb_bits, cmd_buff.length);
 
 	// Number of bits to send in the last byte
-	nb_bits_rem = nb_bits % 8;
+	nb_bits_rem = cmd_buff.nb_bits % 8;
+	nb_bits_rem = nb_bits_rem>0 ? nb_bits_rem : 8;
 
-	for (index = 0; index < length; index = index + 1)
+	for (index = 0; index < cmd_buff.length; index = index + 1)
 	begin
 		// If we are in the last byte, we have to send only
 		// nb_bits_rem bits if it's not zero.
 		// If not, we send the whole byte.
-		nb_bits_in_this_byte = (index == (length - 1)) ? ((nb_bits_rem == 0) ? 8 : nb_bits_rem) : 8;
+		nb_bits_in_this_byte = (index == (cmd_buff.length - 1)) ? nb_bits_rem : 8;
 
-		data_out = buffer_out[index];
+		data = cmd_buff.buffer_out[index];
 		for (_bit = 0; _bit < nb_bits_in_this_byte; _bit = _bit + 1)
 		begin
-			tdi <= 1'b0;
-			if (data_out[_bit] == 1'b1) begin
+			tdi <= 1'b0; // TODO
+			if (data[_bit] == 1'b1) begin
 				tdi <= 1'b1;
 			end
 
 			// On the last bit, set TMS to '1'
-			if (((_bit == (nb_bits_in_this_byte - 1)) && (index == (length - 1))) && (flip_tms == 1)) begin
+			if (((_bit == (nb_bits_in_this_byte - 1)) && (index == (cmd_buff.length - 1))) && (flip_tms == 1)) begin
 				tms <= 1'b1;
 			end
 
 			#TCK_HALF_PERIOD tck <= 1;
-			data_in[_bit] <= tdo;
+			data[_bit] <= tdo;
 			#TCK_HALF_PERIOD tck <= 0;
 		end
-		buffer_in[index] = data_in;
+		cmd_buff.buffer_in[index] = data;
 	end
 
 	tdi <= 1'b0;
 	tms <= 1'b0;
 end
 
+endtask
+
+//
+task destroy;
+  sim_finish_callback();
+  $finish();
 endtask
 
 endmodule
