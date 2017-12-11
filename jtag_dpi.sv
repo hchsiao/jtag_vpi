@@ -80,7 +80,7 @@ begin
   end
 
 	tck		<= #TP 1'b0;
-	tdi		<= #TP 1'bz;
+	tdi		<= #TP 1'b0;
 	tms		<= #TP 1'b0;
 
 	// Insert a #delay here because we need to

@@ -40,7 +40,7 @@
 
 #include <svdpi.h>
 
-#define RSP_SERVER_PORT	5555
+#define RSP_SERVER_PORT	22222
 
 // NOTICE!!
 // Should be consist with jtag driver in openocd and SystemVerilog

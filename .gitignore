@@ -4,5 +4,5 @@
 *.vvp
 *.vcd
 
-sim/run/*
-!sim/run/Makefile
+# Dumped files
+test/cache
