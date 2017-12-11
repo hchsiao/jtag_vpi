@@ -22,7 +22,7 @@ always
 initial begin
 	#10 rst <= 1;
 	#20 rst <= 0;
-	initialized <= 1;
+  initialized <= 1;
 end
 
 jtag_dpi #(.DEBUG_INFO(0))
