@@ -41,8 +41,8 @@
 module jtag_dpi
 #(parameter DEBUG_INFO = 0,
 	parameter TP = 1,
-	parameter TCK_HALF_PERIOD = 50, // Clock half period (Clock period = 100 ns => 10 MHz)
-  parameter CMD_DELAY = 1000
+	parameter TCK_HALF_PERIOD = 35, // Clock half period (Clock period = 100 ns => 10 MHz)
+  parameter CMD_DELAY = 5
 )
 (
 	output reg	tms,
@@ -95,8 +95,9 @@ task main;
 begin
 	$display("JTAG debug module with VPI interface enabled\n");
 
-	reset_tap;
-	goto_run_test_idle_from_reset;
+  // Debugger is responsible for this
+	//reset_tap;
+	//goto_run_test_idle_from_reset;
 
 	while (1) begin
 
