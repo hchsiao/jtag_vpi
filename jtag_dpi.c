@@ -123,7 +123,7 @@ int send_result_to_server(const struct vpi_cmd* cmd)
 
 	n = write(connfd, cmd, sizeof(struct vpi_cmd));
 	if (n < (ssize_t)sizeof(struct vpi_cmd)) {
-		vpi_printf("jtag_vpi: ERROR: error during write to server\n");
+		printf("jtag_vpi: ERROR: error during write to server\n");
     return n;
   }
   return ercd;

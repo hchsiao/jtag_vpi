@@ -1,6 +1,6 @@
 # Tool paths
 INC_DIR=/opt/Cadence/INCISIV/cur/tools/include
-OCD=~/devel/openocd/build/bin/openocd
+OCD=~/devel/aosoc/riscv-openocd/build/bin/openocd
 
 # Toolchain
 CC=gcc
@@ -49,7 +49,7 @@ run: ncsim
 	@echo '##### Waiting for the server ######'
 	$(Q)while ! fuser $(JTAG_DPI_PORT)/tcp; do sleep 1; done;
 	@echo '##### Running the test client ######'
-	$(Q)cd $(CACHE_DIR); $(OCD) -d 3 -f $(TEST_DIR)/jtag_dpi.cfg
+	$(Q)cd $(CACHE_DIR); $(OCD) -d3 -f $(TEST_DIR)/jtag_dpi.cfg
 
 clean:
 	@rm -rf $(CACHE_DIR)
