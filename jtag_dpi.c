@@ -37,6 +37,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <time.h>
 
 #include <svdpi.h>
 
@@ -60,6 +61,26 @@ struct vpi_cmd {
 
 int listenfd = 0;
 int connfd = 0;
+
+static long start_time_sec = -1;
+
+/* Helper function to perform time profiling */
+int dpi_get_time_ms() {
+  int result;
+  struct timespec tp;
+  long sec;
+
+  result = clock_gettime(CLOCK_MONOTONIC_COARSE, &tp);
+  if (0 != result)
+    return -1;
+
+  if(start_time_sec < 0)
+    start_time_sec = tp.tv_sec;
+
+  result = (tp.tv_sec - start_time_sec)*1000 + tp.tv_nsec/1000000;
+
+  return result;
+}
 
 int init_jtag_server(int port)
 {

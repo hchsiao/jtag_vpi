@@ -61,6 +61,7 @@ typedef struct {
 
 import "DPI-C" context function int check_for_command(output vpi_cmd cmd);
 import "DPI-C" context function int send_result_to_server(input vpi_cmd cmd);
+import "DPI-C" context function int dpi_get_time_ms();
 import "DPI-C" context function void sim_finish_callback();
 
 bit flip_tms;
@@ -108,7 +109,11 @@ begin
 
 		while (cmd_buff.cmd == -1)
 		begin
+			if (DEBUG_INFO)
+        $display("Start polling, time = %d", dpi_get_time_ms());
       #CMD_DELAY ercd = check_for_command(cmd_buff);
+			if (DEBUG_INFO)
+        $display("End polling, time = %d", dpi_get_time_ms());
 		end
 
 		// now switch on the command
@@ -116,41 +121,55 @@ begin
 
 		`CMD_RESET :
 		begin
-			if (DEBUG_INFO)
+      if (DEBUG_INFO) begin
 				$display("%t ----> CMD_RESET %h\n", $time, cmd_buff.length);
+        $display("time = %d", dpi_get_time_ms());
+      end
 			reset_tap;
 			goto_run_test_idle_from_reset;
 		end
 
 		`CMD_TMS_SEQ :
 		begin
-			if (DEBUG_INFO)
+      if (DEBUG_INFO) begin
 				$display("%t ----> CMD_TMS_SEQ\n", $time);
+        $display("time = %d", dpi_get_time_ms());
+      end
 			do_tms_seq;
 		end
 
 		`CMD_SCAN_CHAIN :
 		begin
-			if (DEBUG_INFO)
+      if (DEBUG_INFO) begin
 				$display("%t ----> CMD_SCAN_CHAIN\n", $time);
+        $display("time = %d", dpi_get_time_ms());
+      end
 			flip_tms = 0;
 			do_scan_chain;
+      if (DEBUG_INFO)
+        $display("Start returning data, time = %d", dpi_get_time_ms());
 			ercd = send_result_to_server(cmd_buff);
 		end
 
 		`CMD_SCAN_CHAIN_FLIP_TMS :
 		begin
-			if(DEBUG_INFO)
+      if(DEBUG_INFO) begin
 				$display("%t ----> CMD_SCAN_CHAIN\n", $time);
+        $display("time = %d", dpi_get_time_ms());
+      end
 			flip_tms = 1;
 			do_scan_chain;
+      if (DEBUG_INFO)
+        $display("Start returning data, time = %d", dpi_get_time_ms());
 			ercd = send_result_to_server(cmd_buff);
 		end
 
 		`CMD_STOP_SIMU :
 		begin
-			if(DEBUG_INFO)
+      if(DEBUG_INFO) begin
 				$display("%t ----> End of simulation\n", $time);
+        $display("time = %d", dpi_get_time_ms());
+      end
 			destroy;
 		end
 
