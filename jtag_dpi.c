@@ -41,8 +41,6 @@
 
 #include <svdpi.h>
 
-#define RSP_SERVER_PORT	22222
-
 // NOTICE!!
 // Should be consist with jtag driver in openocd and SystemVerilog
 #define	XFERT_MAX_SIZE	512
@@ -63,6 +61,7 @@ int listenfd = 0;
 int connfd = 0;
 
 static long start_time_sec = -1;
+static int port = -1;
 
 /* Helper function to perform time profiling */
 int dpi_get_time_ms() {
@@ -82,10 +81,15 @@ int dpi_get_time_ms() {
   return result;
 }
 
-int init_jtag_server(int port)
+int init_jtag_server()
 {
 	struct sockaddr_in serv_addr;
 	int flags;
+
+  if (port < 0) {
+    perror("port not set yet!");
+    return -1;
+  }
 
 	printf("Listening on port %d\n", port);
 
@@ -119,7 +123,7 @@ int check_for_command(struct vpi_cmd* cmd)
 
 	// Get the command from TCP server
 	if(!connfd)
-	  ercd = init_jtag_server(RSP_SERVER_PORT);
+	  ercd = init_jtag_server();
   if(0 != ercd)
     return ercd;
 
@@ -158,3 +162,7 @@ void sim_finish_callback(void)
 	close(listenfd);
 }
 
+int set_server_port(int p)
+{
+  port = p;
+}

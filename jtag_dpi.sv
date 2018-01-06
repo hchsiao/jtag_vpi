@@ -38,6 +38,8 @@
 
 `define XFERT_MAX_SIZE  512
 
+`define JTAG_DPI_PORT  22222
+
 module jtag_dpi
 #(parameter DEBUG_INFO = 0,
 	parameter TP = 1,
@@ -59,6 +61,7 @@ typedef struct {
 	int nb_bits;
 } vpi_cmd;
 
+import "DPI-C" context function int set_server_port(input int port);
 import "DPI-C" context function int check_for_command(output vpi_cmd cmd);
 import "DPI-C" context function int send_result_to_server(input vpi_cmd cmd);
 import "DPI-C" context function int dpi_get_time_ms();
@@ -95,6 +98,7 @@ end
 task main;
 begin
 	$display("JTAG debug module with VPI interface enabled\n");
+  ercd = set_server_port(`JTAG_DPI_PORT);
 
   // Debugger is responsible for this
 	//reset_tap;
